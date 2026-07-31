@@ -211,7 +211,7 @@ void CmdDumpFirstSector() {
     }
 
     std::wstringstream ss;
-    ss << L"\r\n=== FIRST SECTOR DUMP (" << devPath << L") ===\r\n";
+    ss << L"\r\n=== FIRST SECTOR DUMP (suck it bee-otch-0) (" << devPath << L") ===\r\n";
     for (size_t i = 0; i < sector.size(); i += 16) {
         ss << std::hex << std::uppercase << std::setw(8) << std::setfill(L'0') << i << L"  ";
         for (size_t j = 0; j < 16 && i + j < sector.size(); ++j) {
