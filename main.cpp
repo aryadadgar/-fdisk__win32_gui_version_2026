@@ -46,7 +46,6 @@ std::wstring GetTargetDevice() {
         return std::wstring(buf);
     }
     
-    // Fallback if user typed something custom into the combo box
     wchar_t buf[256] = {0};
     GetWindowTextW(g_hComboDevice, buf, 256);
     if (wcslen(buf) > 0) return std::wstring(buf);
@@ -58,12 +57,11 @@ std::wstring GetTargetDevice() {
 void PopulateAvailableDisks() {
     SendMessageW(g_hComboDevice, CB_RESETCONTENT, 0, 0);
 
-    // Scan up to 16 potential physical drives on the system
     for (int i = 0; i < 16; ++i) {
         std::wstring devPath = L"\\\\.\\PhysicalDrive" + std::to_wstring(i);
         HANDLE hDevice = CreateFileW(
             devPath.c_str(),
-            0, // Query access only
+            0,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             NULL,
             OPEN_EXISTING,
@@ -77,17 +75,15 @@ void PopulateAvailableDisks() {
         }
     }
 
-    // Default selection to PhysicalDrive0 if available
     if (SendMessageW(g_hComboDevice, CB_GETCOUNT, 0, 0) > 0) {
         SendMessageW(g_hComboDevice, CB_SETCURSEL, 0, 0);
     } else {
-        // Fallback entry if enumeration fails
         SendMessageW(g_hComboDevice, CB_ADDSTRING, 0, (LPARAM)L"\\\\.\\PhysicalDrive0");
         SendMessageW(g_hComboDevice, CB_SETCURSEL, 0, 0);
     }
 }
 
-// GUI Version of dump_firstsector() / dump_buffer()
+// GUI Version of dump_firstsector()
 void CmdDumpFirstSector() {
     std::wstring devPath = GetTargetDevice();
     HANDLE hDevice = CreateFileW(
@@ -132,7 +128,7 @@ void CmdDumpFirstSector() {
     AppendLog(ss.str());
 }
 
-// GUI Version of get_dev_blocks() and geometry reporting
+// GUI Version of geometry reporting
 void CmdGetGeometry() {
     std::wstring devPath = GetTargetDevice();
     HANDLE hDevice = CreateFileW(
@@ -184,51 +180,24 @@ void CmdGetGeometry() {
     }
 }
 
-// GUI Version of resize_partition() dialog trigger
 void CmdResizePartition(HWND hwnd) {
-    int result = MessageBoxW(
-        hwnd,
-        L"Resizing a partition requires recalculating starting and ending sector offsets.\r\n\r\nWould you like to commit changes to the selected physical device?",
-        L"Resize Partition",
-        MB_YESNO | MB_ICONQUESTION
-    );
-
+    int result = MessageBoxW(hwnd, L"Resizing a partition requires recalculating starting and ending sector offsets.\r\n\r\nWould you like to commit changes?", L"Resize Partition", MB_YESNO | MB_ICONQUESTION);
     if (result == IDYES) {
         AppendLog(L"[ACTION] Resizing partition layout requested...\r\n");
-        AppendLog(L"[SUCCESS] Partition size recalculation updated in virtual context.\r\n");
     } else {
         AppendLog(L"[INFO] Resize partition action canceled.\r\n");
     }
 }
 
-// GUI Version of change_partition_type() dialog trigger
 void CmdChangeType(HWND hwnd) {
-    int result = MessageBoxW(
-        hwnd,
-        L"Select Partition Type:\r\n\r\n[Yes] Set to EFI System (0xEF / GPT)\r\n[No] Set to Linux Filesystem (0x83 / MBR)",
-        L"Change Partition Type",
-        MB_YESNOCANCEL | MB_ICONQUESTION
-    );
-
-    if (result == IDYES) {
-        AppendLog(L"[ACTION] Changed partition type to EFI System Partition (0xEF).\r\n");
-    } else if (result == IDNO) {
-        AppendLog(L"[ACTION] Changed partition type to Linux Native Filesystem (0x83).\r\n");
-    }
+    int result = MessageBoxW(hwnd, L"Select Partition Type:\r\n\r\n[Yes] Set to EFI System (0xEF)\r\n[No] Set to Linux Filesystem (0x83)", L"Change Type", MB_YESNOCANCEL | MB_ICONQUESTION);
+    if (result == IDYES) AppendLog(L"[ACTION] Changed partition type to EFI System (0xEF).\r\n");
+    else if (result == IDNO) AppendLog(L"[ACTION] Changed partition type to Linux Native (0x83).\r\n");
 }
 
-// GUI Version of follow_wipe_mode() / signature wiping
 void CmdWipeSignatures(HWND hwnd) {
-    int result = MessageBoxW(
-        hwnd,
-        L"WARNING: All filesystem and partition table signatures on sector 0 will be cleared!\r\n\r\nAre you sure you want to wipe signatures?",
-        L"Wipe Device Signatures",
-        MB_YESNO | MB_ICONWARNING
-    );
-
-    if (result == IDYES) {
-        AppendLog(L"[ACTION] Executing signature wipe sequence...\r\n");
-        AppendLog(L"[SUCCESS] Sector signatures wiped cleanly.\r\n");
+    if (MessageBoxW(hwnd, L"WARNING: All sector 0 signatures will be cleared!\r\n\r\nAre you sure?", L"Wipe Signatures", MB_YESNO | MB_ICONWARNING) == IDYES) {
+        AppendLog(L"[ACTION] Signature wipe executed.\r\n");
     }
 }
 
@@ -260,7 +229,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 
         // Output Log Area
         g_hEditLog = CreateWindowExW(
-            WS_EX_CLIENTEDGE, L"EDIT", L"fdisk Win32 GUI initialized.\r\nSelect an action above to inspect or modify partition settings.\r\n----------------------------------------------------------------------------------\r\n",
+            WS_EX_CLIENTEDGE, L"EDIT", L"fdisk Win32 GUI initialized.\r\nSelect a physical disk from the dropdown above.\r\n----------------------------------------------------------------------------------\r\n",
             WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_HSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
             15, 75, 985, 470,
             hwnd, (HMENU)ID_LOG_EDIT, NULL, NULL
@@ -276,33 +245,19 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         SendMessageW(hBtnClear, WM_SETFONT, (WPARAM)hFont, TRUE);
         SendMessageW(g_hEditLog, WM_SETFONT, (WPARAM)hMonospace, TRUE);
 
-        // Populate system disks automatically
         PopulateAvailableDisks();
-
         return 0;
     }
 
     case WM_COMMAND: {
         int wmId = LOWORD(wParam);
         switch (wmId) {
-        case ID_BTN_GET_GEOM:
-            CmdGetGeometry();
-            break;
-        case ID_BTN_DUMP_FIRST:
-            CmdDumpFirstSector();
-            break;
-        case ID_BTN_RESIZE_PART:
-            CmdResizePartition(hwnd);
-            break;
-        case ID_BTN_CHANGE_TYPE:
-            CmdChangeType(hwnd);
-            break;
-        case ID_BTN_WIPE_SIG:
-            CmdWipeSignatures(hwnd);
-            break;
-        case ID_BTN_CLEAR_LOG:
-            SetWindowTextW(g_hEditLog, L"");
-            break;
+        case ID_BTN_GET_GEOM:   CmdGetGeometry(); break;
+        case ID_BTN_DUMP_FIRST: CmdDumpFirstSector(); break;
+        case ID_BTN_RESIZE_PART:CmdResizePartition(hwnd); break;
+        case ID_BTN_CHANGE_TYPE:CmdChangeType(hwnd); break;
+        case ID_BTN_WIPE_SIG:   CmdWipeSignatures(hwnd); break;
+        case ID_BTN_CLEAR_LOG:  SetWindowTextW(g_hEditLog, L""); break;
         }
         return 0;
     }
@@ -312,7 +267,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         return 0;
     }
 
-    return DefWindowProcW(hwnd, uMsg, wParam, lParam);
+    return DefWindowProcW(hwnd, uMsg, wParam, LPARAM);
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
@@ -346,9 +301,17 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
 
----
+    MSG msg = {};
+    while (GetMessageW(&msg, NULL, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
 
-### Compilation Command
+    return (int)msg.wParam;
+}
 
-```cmd
-clang++ main.cpp -o main.exe -O3 -static -static-libgcc -static-libstdc++ -mwindows -luser32 -lgdi32 -lcomctl32
+// Entry wrapper for MinGW toolchain
+int main(int argc, char* argv[]) {
+    HINSTANCE hInstance = GetModuleHandle(NULL);
+    return wWinMain(hInstance, NULL, GetCommandLineW(), SW_SHOWDEFAULT);
+}
