@@ -280,7 +280,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         0,
         CLASS_NAME,
         L"fdisk Disk Partition Manager Utility (Win32 GUI)",
-        WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX, // Fixed size main window
+        WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX,
         CW_USEDEFAULT, CW_USEDEFAULT, 1030, 600,
         NULL,
         NULL,
@@ -300,4 +300,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
 
     return 0;
+}
+
+// Standard entry point wrapper for MinGW toolchain compatibility
+int main(int argc, char* argv[]) {
+    HINSTANCE hInstance = GetModuleHandle(NULL);
+    return wWinMain(hInstance, NULL, GetCommandLineW(), SW_SHOWDEFAULT);
 }
