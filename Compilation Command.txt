@@ -1,1 +1,0 @@
-clang++ main.cpp -o main.exe -O3 -static -static-libgcc -static-libstdc++ -mwindows -luser32 -lgdi32 -lcomctl32
