@@ -1,0 +1,26 @@
+Build command (clang, matches your original invocation style):
+
+clang++ src/main.cpp src/gpt_label.cpp src/mbr_label.cpp -o fdisk_gui.exe ^
+  -I include -O3 -static -static-libgcc -static-libstdc++ -mwindows ^
+  -luser32 -lgdi32 -lcomctl32 -lrpcrt4
+
+Cross-compiling from Linux/macOS with clang + mingw-w64 headers:
+  --target=x86_64-w64-mingw32 -fuse-ld=lld -I/usr/x86_64-w64-mingw32/include -lrpcrt4
+
+Verified: compiles clean (0 warnings) and links to a valid PE32+ GUI exe
+under clang 18 + mingw-w64 13.2 headers.
+
+Run the resulting exe as Administrator - raw \\.\PhysicalDriveN access
+and IOCTL_DISK_SET_DRIVE_LAYOUT_EX both require elevation.
+
+New in this revision:
+- Write button now also commits via IOCTL_DISK_SET_DRIVE_LAYOUT_EX for MBR
+  (the documented Windows-native way to tell the OS about a new layout).
+  GPT still commits via its own primary+backup on-disk write, which already
+  calls IOCTL_DISK_UPDATE_PROPERTIES.
+- Format FAT32 / Format NTFS buttons now call the real FormatEx() from
+  fmifs.dll (the same API Explorer's own Format dialog uses), with a live
+  progress/error callback wired into the log. Note: format targets a
+  mounted volume letter (e.g. D:), not a raw \\.\PhysicalDriveN path -
+  that's an inherent Windows distinction between partitioning and
+  filesystem formatting, not a simplification on my end.
